@@ -67,6 +67,33 @@ const requirePremium = async (req, res, next) => {
         return res.status(500).json({ error: 'Erro interno ao verificar a assinatura.' });
     }
 };
+function readScriptFileAsBase64(fileName, userscriptApiKeyToInject) {
+    try {
+        const filePath = path.resolve(__dirname, 'userscripts_content', fileName);
+        let fileContent = fs.readFileSync(filePath, 'utf8');
+        
+        const firebaseClientConfig = getFirebaseClientConfig();
+        
+        // --- MUDANÇA AQUI: Procura pelos novos placeholders ---
+        const configPlaceholderRegex = /const\s+hardcodedConfig\s*=\s*{};/;
+        const keyPlaceholderRegex = /const\s+hardcodedApiKey\s*=\s*"";/;
+
+        // Injeta a configuração do Firebase
+        if (configPlaceholderRegex.test(fileContent)) {
+            fileContent = fileContent.replace(configPlaceholderRegex, `const hardcodedConfig = ${JSON.stringify(firebaseClientConfig)};`);
+        }
+        
+        // Injeta a chave de API do script
+        if (keyPlaceholderRegex.test(fileContent)) {
+            fileContent = fileContent.replace(keyPlaceholderRegex, `const hardcodedApiKey = "${userscriptApiKeyToInject || ''}";`);
+        }
+        
+        return Buffer.from(fileContent).toString('base64');
+    } catch (error) {
+        console.error(`[SERVER ERROR] Falha ao processar o script ${fileName}:`, error);
+        return Buffer.from(`// Erro ao carregar script ${fileName}.`).toString('base64');
+    }
+}
 // ===========================================
 // ** ROTAS DE API **
 // ===========================================
